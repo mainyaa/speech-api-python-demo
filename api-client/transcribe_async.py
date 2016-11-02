@@ -42,16 +42,14 @@ def get_speech_service():
 # [END authenticating]
 
 
-def main(speech_file):
+def main(input_uri, encoding, sample_rate, languageCode):
+
     """Transcribe the given audio file asynchronously.
 
     Args:
         speech_file: the name of the audio file.
     """
     # [START construct_request]
-    with open(speech_file, 'rb') as speech:
-        # Base64 encode the binary audio file for inclusion in the request.
-        speech_content = base64.b64encode(speech.read())
 
     service = get_speech_service()
     service_request = service.speech().asyncrecognize(
@@ -59,13 +57,13 @@ def main(speech_file):
             'config': {
                 # There are a bunch of config options you can specify. See
                 # https://goo.gl/KPZn97 for the full list.
-                'encoding': 'LINEAR16',  # raw 16-bit signed LE samples
-                'sampleRate': 16000,  # 16 khz
+                'encoding': encoding,  # raw 16-bit signed LE samples
+                'sampleRate': sample_rate,  # 16 khz
                 # See https://goo.gl/A9KJ1A for a list of supported languages.
-                'languageCode': 'en-US',  # a BCP-47 language tag
+                'languageCode': languageCode,  # a BCP-47 language tag
             },
             'audio': {
-                'content': speech_content.decode('UTF-8')
+                'uri': input_uri
                 }
             })
     # [END construct_request]
@@ -88,14 +86,28 @@ def main(speech_file):
         if 'done' in response and response['done']:
             break
 
-    print(json.dumps(response['response']['results']))
+    print(json.dumps(response).decode('unicode-escape'))
 
+def _gcs_uri(text):
+    if not text.startswith('gs://'):
+        raise argparse.ArgumentTypeError(
+            'Cloud Storage uri must be of the form gs://bucket/path/')
+    return text
 
 # [START run_application]
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('input_uri', type=_gcs_uri)
     parser.add_argument(
-        'speech_file', help='Full path of audio file to be recognized')
+        '--encoding', default='LINEAR16', choices=[
+            'LINEAR16', 'FLAC', 'MULAW', 'AMR', 'AMR_WB'],
+        help='How the audio file is encoded. See {}#L67'.format(
+            'https://github.com/googleapis/googleapis/blob/master/'
+            'google/cloud/speech/v1beta1/cloud_speech.proto'))
+    parser.add_argument('--sample_rate', type=int, default=44100)
+    parser.add_argument('--languageCode', default="ja_JP")
+    
     args = parser.parse_args()
-    main(args.speech_file)
+    main(args.input_uri, args.encoding, args.sample_rate, args.languageCode)
+
     # [END run_application]
